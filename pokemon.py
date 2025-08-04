@@ -5,9 +5,9 @@ import random
 import requests
 from PIL import Image
 from io import BytesIO
+import plotly.graph_objects as go
 
-# Set the title of the app
-st.title("Pokemon App (Team 2)")
+st.sidebar.image("https://blog.logomyway.com/wp-content/uploads/2021/05/pokemon-logo-png.png", width=300)
 
 # Load data
 df = pd.read_csv("pokemon.csv")
@@ -41,11 +41,17 @@ def get_max_value(column_name):
 # Create two columns
 #col1, col2 = st.columns([1, 1])
 
+
+st.sidebar.title("Pokémon Options")
+
+# Add some explanatory text
+st.sidebar.markdown("Choose a Pokémon manually or generate one randomly.")
+
+
 #with col1:
 # Input box for Pokémon number
-st.write(f"Enter a Pokémon number ({get_min_value('pokedex_number')}–{get_max_value('pokedex_number')})")
-pokemon_number_input = st.number_input(
-    "",
+pokemon_number_input = st.sidebar.number_input(
+    f"Enter a Pokémon number ({get_min_value('pokedex_number')}–{get_max_value('pokedex_number')})",
     min_value=get_min_value('pokedex_number'),
     max_value=get_max_value('pokedex_number'),
     step=1,
@@ -53,21 +59,68 @@ pokemon_number_input = st.number_input(
 
 #with col2:
 # Button to generate a random Pokémon number
-st.write("Or pick randomly")
-st.write("")
-if st.button("Generate Random Pokémon", use_container_width=True):
+if st.sidebar.button("Generate Random Pokémon", use_container_width=True):
     pokemon_number_input = random.randint(get_min_value('pokedex_number'), get_max_value('pokedex_number'))
+
 
 # Display pokemon image based on user input
 if pokemon_number_input is not None:
+    
+    # Display teh heading
+    #st.subheader("Key Metrics")
+    
     # Fetch the image
     response = requests.get(generate_link(base_url,(input_handle(pokemon_number_input))))
     image = Image.open(BytesIO(response.content))
 
     # Display in Streamlit
-    st.image(image, width=300) # width in pixels / use_column_width=True can be used
+    #st.image(image, width=300) # width in pixels / use_column_width=True can be used
 
+    col1, col2, col3 = st.columns(3)
 
+    # Assume this returns multiple rows
+    pokemon_row = df[df['pokedex_number'] == pokemon_number_input]
+
+    # Take only the first matching row
+    first_pokemon = pokemon_row.iloc[0]
+
+    # Column 1: Name and Image
+    with col1:
+        st.header(first_pokemon['name'].title())
+        st.image(image)
+
+    # Column 2: Type, Height, Weight
+    with col2:
+        st.subheader("Type")
+        type_text = first_pokemon['type_1']
+        if first_pokemon['type_number'] == 2:
+            type_text += f", {first_pokemon['type_2']}"
+        st.markdown(f"**{type_text}**")
+
+        st.subheader("Stats")
+        st.metric("Height", f"{first_pokemon['height_m']} m")
+        st.metric("Weight", f"{first_pokemon['weight_kg']} kg")
+
+    # Column 3: Species and Abilities
+    with col3:
+        st.subheader("Species")
+        st.markdown(f"**{first_pokemon['species']}**")
+
+        st.subheader("Abilities")
+        abilities = []
+        if first_pokemon['ability_1']:
+            abilities.append(first_pokemon['ability_1'])
+        if pd.notna(first_pokemon['ability_2']) and first_pokemon['ability_2']:
+            abilities.append(first_pokemon['ability_2'])
+        if pd.notna(first_pokemon['ability_hidden']) and first_pokemon['ability_hidden']:
+            abilities.append(f"{first_pokemon['ability_hidden']} *(Hidden)*")
+
+        for ability in abilities:
+            st.markdown(f"- {ability}")
+
+    # Display the heading
+    st.subheader("Visualizations")
+    
     # Visualizations
     selected_number = pokemon_number_input
     pokemon = df[df['pokedex_number'] == selected_number].iloc[0]
@@ -160,3 +213,31 @@ if pokemon_number_input is not None:
     
     # Show the bar chart in Streamlit
     st.plotly_chart(fig2)
+    
+    # Sample 19 random Pokémon 
+    sample_df = df.sample(19)
+
+    # Add the selected Pokémon to the sample
+    hp_comparison_df = pd.concat([sample_df, df[df['pokedex_number'] == selected_number]])
+
+    # Highlight the selected Pokémon
+    colors = ['#e74c3c' if pid == selected_number else '#FFCB05' for pid in hp_comparison_df['pokedex_number']]
+
+    fig3 = go.Figure()
+    fig3.add_trace(go.Bar(
+    x=hp_comparison_df['name'],
+    y=hp_comparison_df['hp'],
+    marker_color=colors,
+    name='HP'
+    ))
+
+    fig3.update_layout(
+        barmode='group',
+        title='HP Comparison: Selected Pokémon vs 19 Others',
+        xaxis_title='Pokémon',
+        yaxis_title='HP',
+        xaxis_tickangle=-45,
+        showlegend=False
+    )
+
+    st.plotly_chart(fig3)
