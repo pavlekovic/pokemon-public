@@ -38,9 +38,26 @@ def get_max_value(column_name):
     return df[column_name].max()
 
 
-# Create two columns
-#col1, col2 = st.columns([1, 1])
-
+# Define type colors for Pokemon type
+type_colors = {
+    "Grass": "#78C850",
+    "Poison": "#A040A0",
+    "Fire": "#F08030",
+    "Water": "#6890F0",
+    "Electric": "#F8D030",
+    "Psychic": "#F85888",
+    "Normal": "#A8A878",
+    "Ground": "#E0C068",
+    "Flying": "#A890F0",
+    "Bug": "#A8B820",
+    "Rock": "#B8A038",
+    "Ghost": "#705898",
+    "Ice": "#98D8D8",
+    "Dragon": "#7038F8",
+    "Dark": "#705848",
+    "Steel": "#B8B8D0",
+    "Fairy": "#EE99AC"
+}
 
 st.sidebar.title("Pokémon Options")
 
@@ -48,7 +65,6 @@ st.sidebar.title("Pokémon Options")
 st.sidebar.markdown("Choose a Pokémon manually or generate one randomly.")
 
 
-#with col1:
 # Input box for Pokémon number
 pokemon_number_input = st.sidebar.number_input(
     f"Enter a Pokémon number ({get_min_value('pokedex_number')}–{get_max_value('pokedex_number')})",
@@ -57,46 +73,71 @@ pokemon_number_input = st.sidebar.number_input(
     step=1,
     value=None) #making sure that no image is rendered before user input
 
-#with col2:
+
 # Button to generate a random Pokémon number
 if st.sidebar.button("Generate Random Pokémon", use_container_width=True):
     pokemon_number_input = random.randint(get_min_value('pokedex_number'), get_max_value('pokedex_number'))
 
 
+
 # Display pokemon image based on user input
 if pokemon_number_input is not None:
-    
-    # Display teh heading
-    #st.subheader("Key Metrics")
     
     # Fetch the image
     response = requests.get(generate_link(base_url,(input_handle(pokemon_number_input))))
     image = Image.open(BytesIO(response.content))
-
-    # Display in Streamlit
-    #st.image(image, width=300) # width in pixels / use_column_width=True can be used
-
-    col1, col2, col3 = st.columns(3)
 
     # Assume this returns multiple rows
     pokemon_row = df[df['pokedex_number'] == pokemon_number_input]
 
     # Take only the first matching row
     first_pokemon = pokemon_row.iloc[0]
-
+    
+    st.header(first_pokemon['name'].title())
+    
+    st.markdown("""
+    <hr style="border: 1px solid #ccc; margin: 20px 0;">
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([2, 1, 1])  # 25%, 12.5%, 62.5%
+    
     # Column 1: Name and Image
     with col1:
-        st.header(first_pokemon['name'].title())
+        #st.header(first_pokemon['name'].title())
         st.image(image)
 
     # Column 2: Type, Height, Weight
     with col2:
         st.subheader("Type")
-        type_text = first_pokemon['type_1']
-        if first_pokemon['type_number'] == 2:
-            type_text += f", {first_pokemon['type_2']}"
-        st.markdown(f"**{type_text}**")
+        
+        # Example: types as a list (in case more than 1)
+        types = [first_pokemon['type_1']]
+        if first_pokemon['type_number'] == 2 and pd.notna(first_pokemon['type_2']): # In case there is more than one type
+            types.append(first_pokemon['type_2']) 
 
+        # Generate styled buttons for each type
+        styled_types = ""
+        for t in types:
+            color = type_colors.get(t.title(), "#CCCCCC")
+            styled_types += f"""
+            <span style="
+                display: inline-block;
+                background-color: {color};
+                color: white;
+                padding: 0.3em 0.8em;
+                margin-right: 0.5em;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 0.9em;
+            ">
+                {t.title()}
+            </span>
+            """
+
+        # Display it
+        st.markdown(styled_types, unsafe_allow_html=True)
+
+        # Show stats
         st.subheader("Stats")
         st.metric("Height", f"{first_pokemon['height_m']} m")
         st.metric("Weight", f"{first_pokemon['weight_kg']} kg")
@@ -118,8 +159,9 @@ if pokemon_number_input is not None:
         for ability in abilities:
             st.markdown(f"- {ability}")
 
-    # Display the heading
-    st.subheader("Visualizations")
+    st.markdown("""
+    <hr style="border: 1px solid #ccc; margin: 20px 0;">
+    """, unsafe_allow_html=True)
     
     # Visualizations
     selected_number = pokemon_number_input
@@ -140,7 +182,7 @@ if pokemon_number_input is not None:
         hover_name='name',
         color='is_selected',
         color_discrete_map={True: 'red', False: 'lightblue'},
-        title="Height vs weight of all Pokémon"
+        title="Height vs weight of All Pokémon"
     )
 
     fig1.add_annotation(
@@ -193,7 +235,7 @@ if pokemon_number_input is not None:
         x='effectiveness',
         y='type',
         orientation='h',
-        title=f"{selected_pokemon['name']} effectiveness against each type:",
+        title=f"{selected_pokemon['name']} Effectiveness Against Each Type:",
         color='color',  # Use the color column
         color_discrete_map={
             'green': '#2ecc71',
@@ -220,6 +262,9 @@ if pokemon_number_input is not None:
     # Add the selected Pokémon to the sample
     hp_comparison_df = pd.concat([sample_df, df[df['pokedex_number'] == selected_number]])
 
+    # Sort by value
+    hp_comparison_df = hp_comparison_df.sort_values(by='hp', ascending=False)
+    
     # Highlight the selected Pokémon
     colors = ['#e74c3c' if pid == selected_number else '#FFCB05' for pid in hp_comparison_df['pokedex_number']]
 
@@ -233,7 +278,7 @@ if pokemon_number_input is not None:
 
     fig3.update_layout(
         barmode='group',
-        title='HP Comparison: Selected Pokémon vs 19 Others',
+        title='HP Comparison: Selected Pokémon vs 19 Random Others',
         xaxis_title='Pokémon',
         yaxis_title='HP',
         xaxis_tickangle=-45,
